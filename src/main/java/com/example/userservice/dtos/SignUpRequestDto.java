@@ -1,4 +1,4 @@
-package com.scaler.userservice.dtos;
+package com.example.userservice.dtos;
 
 import lombok.Getter;
 import lombok.Setter;
