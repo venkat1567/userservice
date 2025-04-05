@@ -1,5 +1,8 @@
 package com.example.userservice.services;
 
+import com.example.userservice.clients.KafkaProducerClient;
+import com.example.userservice.dtos.EmailDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.userservice.exceptions.UserAlreadyExistsException;
 import com.example.userservice.exceptions.UserNotFoundException;
 import com.example.userservice.exceptions.WrongPasswordException;
@@ -7,10 +10,12 @@ import com.example.userservice.models.Session;
 import com.example.userservice.models.User;
 import com.example.userservice.repositories.SessionRepository;
 import com.example.userservice.repositories.UserRepository;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -34,13 +39,17 @@ public class AuthService {
             "venkatisssssssssssssssssssssssssssssssssssssssssssscool"
                     .getBytes(StandardCharsets.UTF_8));//This is custom key
     private SessionRepository sessionRepository;
+    private KafkaProducerClient kafkaProducerClient;
+    @Autowired
+    private ObjectMapper objectMapper;
 
     public AuthService(UserRepository userRepository,
                        BCryptPasswordEncoder bCryptPasswordEncoder,
-                       SessionRepository sessionRepository) {
+                       SessionRepository sessionRepository,KafkaProducerClient kafkaProducerClient) {
         this.userRepository = userRepository;
         this.bCryptPasswordEncoder = bCryptPasswordEncoder;
         this.sessionRepository = sessionRepository;
+        this.kafkaProducerClient=kafkaProducerClient;
     }
 
     public boolean signUp(String email, String password) throws UserAlreadyExistsException {
@@ -54,6 +63,20 @@ public class AuthService {
         user.setPassword(bCryptPasswordEncoder.encode(password));
 
         userRepository.save(user);
+
+        //Send message into kafka for welcome email
+        try {
+            EmailDto emailDto = new EmailDto();
+            emailDto.setTo(email);
+            emailDto.setSubject("Welcome to Scaler");
+            emailDto.setBody("Have a pleasant learning experience.");
+            emailDto.setFrom("abc@gmail.com");
+
+            kafkaProducerClient.sendMessage("user_signedin", objectMapper.writeValueAsString(emailDto));
+        }catch (JsonProcessingException exception) {
+            throw new RuntimeException(exception.getMessage());
+        }
+
 
         return true;
     }
